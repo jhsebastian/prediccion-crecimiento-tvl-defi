@@ -1,0 +1,526 @@
+% =====================================================================
+%  ENTREGABLE I - Descripción del problema
+%  Plantilla: IEEEtran journal (bare_jrnl_new_sample4.tex)
+%  Compilador: pdfLaTeX  (IEEEtran.cls) + BibTeX (references.bib)
+%
+%  Las cifras y figuras del análisis exploratorio se llenan solas con los
+%  archivos que genera el notebook EDA_Entregable1.ipynb: resultados_eda.tex
+%  y las cuatro figuras en PDF (en la raíz del proyecto o en figs/). Si falta
+%  alguno de esos archivos, su lugar aparece en ROJO.
+% =====================================================================
+\documentclass[letterpaper,journal]{IEEEtran}
+\usepackage{amsmath,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{array}
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+\usepackage{textcomp}
+\usepackage{stfloats}
+\usepackage{url}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{xcolor} % solo para las marcas en rojo; puede quitarse al final
+\usepackage[T1]{fontenc}
+% Español: Resumen, Palabras clave, TABLA, Referencias y división silábica
+% correcta. La opción es-minimal evita que babel cambie el formato de IEEEtran.
+\usepackage[spanish,es-minimal,es-noshorthands,es-tabla]{babel}
+\addto\captionsspanish{\renewcommand{\figurename}{Fig.}\renewcommand{\tablename}{TABLA}}
+\renewcommand{\IEEEkeywordsname}{Palabras clave}
+\hyphenation{op-tical net-works semi-conduc-tor IEEE-Xplore}
+
+% Columna de ancho fijo alineada a la izquierda (tablas)
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+% Marcas de contenido pendiente
+\newcommand{\pendiente}[1]{\textcolor{red}{[#1]}}
+\newcommand{\figpendiente}[1]{\fbox{\parbox[c][2.3cm][c]{0.92\columnwidth}{\centering\footnotesize\textcolor{red}{Figura pendiente: #1}}}}
+% Cifras del notebook EDA_Entregable1.ipynb: \dato{clave} muestra el valor
+% definido en resultados_eda.tex (o una marca en rojo si no existe), y
+% \sidato{clave}{texto}{alternativa} escribe el texto solo si la clave existe.
+\makeatletter
+\newcommand{\setdato}[2]{\@namedef{dato@#1}{#2}}
+\newcommand{\dato}[2][]{\@ifundefined{dato@#2}{\pendiente{\ifx\relax#1\relax#2\else#1\fi}}{\@nameuse{dato@#2}}}
+\newcommand{\sidato}[3]{\@ifundefined{dato@#1}{#3}{#2}}
+\makeatother
+\InputIfFileExists{resultados_eda.tex}{}{}
+% \figura[ancho]{archivo}{texto}: incluye la figura del notebook si el PDF está
+% en el proyecto; si no, muestra un recuadro en rojo con el texto.
+\newcommand{\figura}[3][0.95]{\IfFileExists{figs/#2}{\includegraphics[width=#1\columnwidth]{figs/#2}}{\IfFileExists{#2}{\includegraphics[width=#1\columnwidth]{#2}}{\figpendiente{#3}}}}
+
+\begin{document}
+
+\title{Predicción de Crecimiento de Adopción en Protocolos Blockchain a partir de Fundamentales \emph{on-chain}}
+
+\author{Michael~Stiven~Tabares~Tob\'on,~\IEEEmembership{Estudiante,~Universidad~de~Antioquia}\\
+Mar\'ia~Fernanda~Atencia~Oliva,~\IEEEmembership{Estudiante,~Universidad~de~Antioquia}\\
+Valeria~V\'asquez~Barrag\'an,~\IEEEmembership{Estudiante,~Universidad~de~Antioquia}\\
+Jhon~Sebasti\'an~Mart\'inez~Soto,~\IEEEmembership{Estudiante,~Universidad~de~Antioquia}%
+\thanks{Proyecto de aula para el curso Modelos y Simulación de Sistemas~II (Aprendizaje Supervisado), Departamento de Ingeniería de Sistemas, Universidad de Antioquia.}%
+\thanks{Manuscrito recibido el 2 de octubre de 2026.}}
+
+\markboth{Entregable I}{Descripción del problema}
+
+\maketitle
+
+\begin{abstract}
+Este documento describe el problema de investigación del proyecto, consistente
+en determinar si la información fundamental y el comportamiento histórico
+reciente de un protocolo de finanzas descentralizadas (\emph{DeFi}), disponibles
+hasta la semana $t$, contienen suficiente señal para anticipar si dicho protocolo
+estará, durante la semana siguiente ($t+1$), entre el 10\,\% de protocolos con
+mayor crecimiento relativo del valor total bloqueado (\emph{Total Value Locked},
+TVL). Se describe la base de datos construida a partir de la API pública de
+DeFiLlama, cuya unidad de observación es el par (\emph{protocolo, semana}):
+\dato{N} observaciones de \dato{P} protocolos en \dato{T} semanas,
+con una clase positiva de \dato{p}\,\%. Se detallan las variables, los datos
+faltantes, la estrategia de imputación, la codificación y un análisis
+exploratorio. El problema se formula como una clasificación binaria supervisada
+con validación temporal, cuya métrica principal es el área bajo la curva
+precisión--\emph{recall} (PR-AUC). En coherencia con la literatura especializada,
+el diseño de características se orienta a los fundamentales de actividad
+(\emph{Gross Merchandise Volume}, \emph{fees}) y a variables derivadas dinámicas
+del TVL, y no solo a su nivel estático. Se presentan también las hipótesis del
+estudio, las limitaciones de los datos y una revisión de cuatro trabajos de
+aprendizaje de máquina sobre problemas afines.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Finanzas descentralizadas (DeFi), \emph{Total Value Locked} (TVL),
+\emph{Gross Merchandise Volume} (GMV), clasificación supervisada, clases
+desbalanceadas, fundamentales \emph{on-chain}, panel de datos, validación
+temporal.
+\end{IEEEkeywords}
+
+% =====================================================================
+%  I. DESCRIPCIÓN DEL PROBLEMA
+% =====================================================================
+\section{Descripción del problema}
+\subsection{Contexto del problema y utilidad de una solución basada en \emph{machine learning}}
+
+Las finanzas descentralizadas (\emph{DeFi}) constituyen un ecosistema de
+servicios financieros ejecutados sobre contratos inteligentes, sin intermediarios
+centralizados, en el que las métricas de actividad y de valor ---la más usada de
+ellas el \emph{Total Value Locked} (TVL), que cuantifica los activos depositados
+en los contratos de un protocolo--- son públicas y, en principio, verificables
+\emph{on-chain}, aunque su cálculo en los agregadores depende de adaptadores
+desarrollados por la comunidad y no está estandarizado \cite{saggese2025}. Este
+ecosistema es altamente dinámico. El TVL agregado ha pasado por ciclos abruptos
+de crecimiento y contracción (Fig.~\ref{fig:tvl}): cayó a
+$\approx$\dato[40~000]{tvl2022}~M~USD a finales de 2022, subió a
+$\approx$\dato[129~000]{tvl2025}~M~USD en 2025 y en 2026 llegó a estar
+$\approx$\dato[39]{caida2026}\,\% por debajo de ese máximo. Además, el número
+de protocolos elegibles del panel (Sec.~\ref{sec:datos}) pasó de
+\dato[mín]{minE} a \dato[máx]{maxE} entre 2022 y 2025 (Fig.~\ref{fig:elegibles}).
+En este entorno, el seguimiento manual de miles de protocolos es inviable, y
+existe una asimetría de información considerable entre los desarrolladores de
+los protocolos y sus usuarios \cite{ali2026}.
+
+El problema consiste en determinar si la información fundamental y el
+comportamiento histórico reciente de un protocolo ---disponibles hasta la semana
+$t$--- contienen suficiente señal para anticipar si ese protocolo estará, durante
+la semana siguiente ($t+1$), entre el 10\,\% de protocolos con mayor crecimiento
+relativo del TVL de esa semana (definición formal en \eqref{eq:y}). La utilidad
+de una solución basada en \emph{machine learning} (ML) es triple:
+
+\begin{enumerate}
+\item \textbf{Escalabilidad.} Un modelo supervisado permite procesar de forma
+automática el panel completo de cada semana ---en la mediana,
+\dato[med]{medE} protocolos elegibles (Fig.~\ref{fig:elegibles})---, algo
+inabordable manualmente.
+\item \textbf{Detección de relaciones no lineales.} La relación entre los
+fundamentales \emph{on-chain} y el valor de un protocolo es no lineal y muy
+volátil \cite{ali2026}, y en problemas afines los modelos de ML superan a las
+referencias lineales y econométricas \cite{ghosh2023,jaquart2022}.
+\item \textbf{Marco de evaluación riguroso.} La formulación como clasificación
+binaria con validación temporal (Sec.~\ref{sec:paradigma}) permite responder de
+forma verificable si existe señal predictiva en los fundamentales, y cuáles son
+las variables más informativas.
+\end{enumerate}
+
+El proyecto es de naturaleza académica y experimental: no se busca construir un
+sistema de \emph{trading} ni predecir precios de tokens, sino estudiar la
+predictibilidad del crecimiento/adopción de protocolos a partir de fundamentales
+\emph{on-chain}.
+
+\subsection{Composición de la base de datos}
+\label{sec:datos}
+
+\textbf{Fuente de datos.} La base de datos se construye a partir de la API
+pública y gratuita de DeFiLlama (\texttt{https://api.llama.fi}), cuyos endpoints
+fueron verificados el 20/08/2026 \cite{defillama2026}:
+{\raggedright
+\begin{itemize}
+\item \texttt{GET /protocols} --- catálogo de protocolos y categorías.
+\item \texttt{GET /protocol/\{slug\}} --- TVL histórico diario (total y por
+cadena).
+\item \texttt{GET /summary/fees/\{protocol\}} --- \emph{fees}/revenue diarios.
+\item \texttt{GET /summary/dexs/\{protocol\}} --- volumen DEX diario.
+\item \texttt{GET /overview/fees} y \texttt{/overview/dexs} --- protocolos que
+reportan \emph{fees} o volumen.
+\item \texttt{GET /v2/historicalChainTvl} --- TVL agregado del ecosistema
+(contexto de mercado).
+\end{itemize}
+\par}
+Los datos se descargaron el \dato[dd/mm/2026]{fechadescarga}. DeFiLlama es también la
+fuente de TVL de trabajos académicos recientes sobre DeFi
+\cite{ali2026,metelski2022,grande2025}.
+
+La granularidad nativa es diaria; el dataset se agrega a \textbf{semanas ISO}
+(cierre en domingo UTC): el TVL semanal es el valor al cierre de la semana, y
+los \emph{fees} y el volumen DEX se suman sobre los siete días. La unidad de
+observación es el par \emph{(protocolo, semana)}: un protocolo aporta una fila
+por cada semana en la que tiene datos válidos.
+
+\textbf{Universo elegible y tamaño.} El universo elegible $\mathcal{E}_t$ de la
+semana $t$ está restringido a protocolos con TVL semanal $\geq$ 1 M USD y con al
+menos 8 semanas de historial previo; se excluyen los \emph{exchanges}
+centralizados (categoría CEX), que DeFiLlama lista pero no son protocolos DeFi.
+El período va del 3 de enero de 2022 a la última semana ISO completa disponible
+en la descarga (\dato[dd/mm/2026]{ultimasemana}). El panel resultante tiene
+\dato{N} observaciones de \dato{P} protocolos distintos en
+\dato{T} semanas; el número de protocolos elegibles por semana varía entre
+\dato[mín]{minE} y \dato[máx]{maxE}, con mediana \dato[med]{medE}
+(Fig.~\ref{fig:elegibles}).
+
+\textbf{Variable objetivo.} Para cada protocolo $i \in \mathcal{E}_t$ se define
+el crecimiento logarítmico del TVL entre las semanas $t$ y $t+1$,
+\begin{equation}
+g_{i,t+1} = \ln\!\left(\frac{\text{TVL}_{i,t+1}}{\text{TVL}_{i,t}}\right),
+\label{eq:g}
+\end{equation}
+y la etiqueta binaria
+\begin{equation}
+y_{i,t} = \begin{cases}
+1, & \text{si } g_{i,t+1} \geq q_{0.9}(t+1),\\
+0, & \text{en otro caso,}
+\end{cases}
+\label{eq:y}
+\end{equation}
+donde $q_{0.9}(t+1)$ es el percentil 90 de $\{g_{j,t+1} : j \in \mathcal{E}_t\}$.
+La etiqueta es relativa a la cohorte de cada semana, de modo que no depende de si
+todo el mercado sube o baja; por construcción, la clase positiva es cercana al
+10\,\% (en la base final, \dato{p}\,\%). Si un protocolo deja de reportar
+TVL en $t+1$, se le asigna $y_{i,t}=0$ y no entra en el cálculo del percentil,
+para no descartar los casos de abandono.
+
+\textbf{Fundamentales priorizados.} La literatura sobre valoración y predicción
+de protocolos DeFi converge en señalar que las métricas de \textbf{actividad}
+(distinguidas del capital inmóvil) son las más informativas. Metelski y Sobieraj
+\cite{metelski2022} encuentran que el \emph{Gross Merchandise Volume} (GMV) ---el
+volumen transaccional agregado de un protocolo, análogo al volumen DEX de
+DeFiLlama--- es la \emph{única} variable que causa, en el sentido de Granger, la
+valoración futura, mientras que el TVL no la anticipa: es la valoración la que
+anticipa al TVL. En el mismo sentido, Ali \cite{ali2026}, mediante análisis SHAP,
+encuentra que el GMV ($\approx 0.062$) supera al TVL ($\approx 0.050$) como
+determinante de la valoración; le siguen la clasificación del protocolo como DEX
+($\approx 0.039$), la inflación de tokens ($\approx 0.034$, con efecto negativo
+por dilución) y los ingresos totales ($\approx 0.033$). Fuera de DeFi, Gu
+\emph{et al.} \cite{gukellyxiu2020} concluyen que los predictores dominantes del
+retorno de sección cruzada son el \emph{momentum}, la liquidez y la volatilidad:
+variables dinámicas, no niveles estáticos. Un informe de industria de Greenfield
+Capital \cite{greenfield2025} matiza este resultado: con \emph{Random Forest}
+sobre 77 protocolos, encuentra que desde 2024 el TVL y los \emph{fees} tienen
+importancias similares en el horizonte de 6 meses ($\approx$19.7\,\% y
+$\approx$19.2\,\%), por encima del volumen DEX ($\approx$11.8\,\%), aunque con
+un diseño contemporáneo, no predictivo.
+
+Por ello, el panel incorpora (i) características de actividad ---el GMV/volumen
+DEX y \emph{fees} semanales, su crecimiento a 1 y 4 semanas y su razón respecto
+al TVL (eficiencia de monetización y utilización del capital)--- y (ii) variables
+derivadas del TVL que añaden dinamismo: crecimiento a 1/2/4/8/12/26 semanas,
+\emph{momentum} a 2/4/12/26 semanas, aceleración y volatilidad a 4/8/12/26
+semanas, junto con la posición relativa (\emph{rank}) del TVL dentro de la semana.
+En total son 24 variables numéricas (Tabla~\ref{tab:vars}), a las que se suman
+2 variables indicadoras de disponibilidad y la categoría del protocolo. Todas se
+calculan con información disponible hasta el cierre de la semana $t$.
+
+% --- Tabla de variables predictoras ------------------------------------
+\begin{table}[!t]
+\caption{Variables predictoras: actividad (GMV, \emph{fees}, razones) y
+variables derivadas dinámicas del TVL. Todas se calculan con información
+$\leq$ cierre de la semana $t$.\label{tab:vars}}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}L{2.75cm}cL{4.8cm}@{}}
+\toprule
+\textbf{Variable} & \textbf{Cant.} & \textbf{Definición (tipo)} \\
+\midrule
+\texttt{log\_fees\_week} & 1 & $\ln(1+\textit{fees}$ semanales$)$; actividad (continua) \\
+\texttt{g\_fees\_1w}, \texttt{g\_fees\_4w} & 2 & crecimiento de \emph{fees} a 1 y 4 semanas (continua) \\
+\texttt{log\_dex\_vol\_week} & 1 & $\ln(1+$volumen DEX$)$ $\approx$ GMV; actividad (continua) \\
+\texttt{ratio\_fees\_tvl} & 1 & \emph{fees}/TVL: eficiencia de monetización (continua) \\
+\texttt{ratio\_vol\_tvl} & 1 & volumen DEX/TVL: utilización del capital (continua) \\
+\texttt{fees\_tvl\_rank\_w} & 1 & percentil de \emph{fees}/TVL dentro de la semana (percentil) \\
+\addlinespace
+\texttt{g\_tvl\_1w...26w} & 6 & crecimiento del TVL a 1, 2, 4, 8, 12 y 26 semanas (continua) \\
+\texttt{mom\_2w...26w} & 4 & \emph{momentum}: media del crecimiento semanal en 2, 4, 12 y 26 semanas (continua) \\
+\texttt{accel}, \texttt{accel\_12w} & 2 & aceleración del crecimiento (continua) \\
+\texttt{vol\_4w...26w} & 4 & volatilidad: desv. estándar del crecimiento en 4, 8, 12 y 26 semanas (continua) \\
+\texttt{tvl\_rank\_w} & 1 & percentil del TVL dentro de la semana (percentil) \\
+\midrule
+\multicolumn{3}{@{}L{8.4cm}@{}}{Total: 24 variables numéricas. Además: 2 indicadoras (\texttt{has\_fees}, \texttt{has\_dex\_vol}) y la categoría del protocolo en \emph{one-hot}\sidato{ncat}{ (\dato{ncat} columnas)}{}.} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Datos faltantes e imputación.} No todos los protocolos reportan
+\emph{fees}, y el volumen DEX solo existe para los protocolos de intercambio; por
+eso estas variables concentran los faltantes (Tabla~\ref{tab:eda}). La estrategia de imputación es:
+(i) los \emph{fees} o el volumen no reportados se imputan como 0 y se agregan las
+indicadoras \texttt{has\_fees} y \texttt{has\_dex\_vol}, para distinguir ``no
+reporta'' de ``reporta cero''; (ii) los huecos puntuales en la serie diaria de
+TVL se rellenan hacia adelante hasta 7 días, sin rellenar nunca hacia atrás
+---a diferencia de \cite{ali2026}---, para no introducir información futura;
+(iii) cuando una ventana es más larga que el historial disponible (por ejemplo,
+26 semanas en un protocolo con 10), se imputa la mediana transversal de la
+semana, como en \cite{gukellyxiu2020}; y (iv) los protocolos con menos de 8
+semanas de historial quedan fuera por el criterio de elegibilidad.
+
+\textbf{Codificación.} Los montos (\emph{fees}, volumen) se transforman con
+$\ln(1+x)$ por su fuerte asimetría, y los crecimientos se calculan como
+diferencias de $\ln(1+x)$, lo que los deja definidos aun cuando el valor previo
+es 0. Las posiciones relativas se codifican como percentiles dentro de la
+semana, en $[0,1]$. Las variables continuas se recortan en los percentiles 1 y
+99 de cada semana para limitar valores extremos, sin modificar la variable
+objetivo. La categoría del protocolo (DEX, \emph{Lending}, \emph{Liquid Staking},
+etc.) se codifica en \emph{one-hot}, agrupando en ``Otros'' las categorías con
+menos de \dato{m} protocolos\sidato{ncat}{, lo que da \dato{ncat} columnas
+binarias; en total, cada observación se describe con
+\the\numexpr 26+\csname dato@ncat\endcsname\relax{} columnas}{}. La etiqueta es
+binaria (0/1), y el escalamiento estándar que requieren modelos como SVM o redes
+neuronales se ajustará solo con el conjunto de entrenamiento.
+
+\textbf{Análisis exploratorio.} La Tabla~\ref{tab:eda} resume las variables
+principales y su porcentaje de faltantes; la Fig.~\ref{fig:eda1} muestra la
+evolución del TVL agregado y del número de protocolos elegibles, y la
+Fig.~\ref{fig:eda2}, la distribución del crecimiento semanal y la correlación
+entre predictores. \dato[Describir en 2--3 frases los hallazgos: asimetría
+de las variables de actividad, magnitud del umbral $q_{0.9}$, estabilidad del
+balance de clases por semana y pares de variables muy correlacionadas.]{hallazgos}
+Un umbral $q_{0.9}$ negativo corresponde a semanas de caída generalizada, en las
+que incluso el decil superior pierde TVL; aun así, la etiqueta relativa conserva
+cerca de 10\,\% de positivos en cualquier régimen de mercado. Además,
+\texttt{fees\_tvl\_rank\_w} es el percentil semanal de
+\texttt{ratio\_fees\_tvl}, por lo que ese par es casi redundante por
+construcción.
+
+% --- Tabla de estadísticas descriptivas --------------------------------
+\begin{table}[!t]
+\caption{Estadísticas descriptivas y porcentaje de datos faltantes (antes de
+imputar) de variables seleccionadas\label{tab:eda}}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Variable} & \textbf{Media} & \textbf{Mediana} & \textbf{Desv.} & \textbf{\% falt.} \\
+\midrule
+$g_{i,t+1}$ (objetivo) & \dato[--]{t-g-media} & \dato[--]{t-g-mediana} & \dato[--]{t-g-desv} & \dato[--]{t-g-falt} \\
+\texttt{g\_tvl\_1w} & \dato[--]{t-gtvl1-media} & \dato[--]{t-gtvl1-mediana} & \dato[--]{t-gtvl1-desv} & \dato[--]{t-gtvl1-falt} \\
+\texttt{log\_fees\_week} & \dato[--]{t-logfees-media} & \dato[--]{t-logfees-mediana} & \dato[--]{t-logfees-desv} & \dato[--]{t-logfees-falt} \\
+\texttt{log\_dex\_vol\_week} & \dato[--]{t-logdex-media} & \dato[--]{t-logdex-mediana} & \dato[--]{t-logdex-desv} & \dato[--]{t-logdex-falt} \\
+\texttt{ratio\_fees\_tvl} & \dato[--]{t-ratiofees-media} & \dato[--]{t-ratiofees-mediana} & \dato[--]{t-ratiofees-desv} & \dato[--]{t-ratiofees-falt} \\
+\texttt{vol\_12w} & \dato[--]{t-vol12-media} & \dato[--]{t-vol12-mediana} & \dato[--]{t-vol12-desv} & \dato[--]{t-vol12-falt} \\
+\midrule
+\multicolumn{5}{@{}l}{Clase positiva ($y_{i,t}=1$): \dato{p}\,\% de las observaciones.} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% --- Figuras del análisis exploratorio ---------------------------------
+% Las figuras las genera el notebook EDA_Entregable1.ipynb; \figura las incluye
+% cuando el PDF está en el proyecto (en la raíz o en la carpeta figs/).
+\begin{figure}[!t]
+\centering
+\subfloat[TVL agregado del ecosistema por semana (eje $y$: miles de millones de USD).\label{fig:tvl}]{%
+\figura{tvl_agregado.pdf}{Eje $x$: semana (2022--2026); eje $y$: TVL agregado (miles de millones de USD). Fuente: \texttt{/v2/historicalChainTvl}.}}
+\\
+\subfloat[Protocolos del universo elegible $\mathcal{E}_t$ por semana (eje $y$: número de protocolos).\label{fig:elegibles}]{%
+\figura{protocolos_elegibles.pdf}{Eje $x$: semana; eje $y$: número de protocolos elegibles.}}
+\caption{Composición temporal de la base de datos.}
+\label{fig:eda1}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\subfloat[Distribución de $g_{i,t+1}$ con el umbral promedio $q_{0.9}$; se omite el 1\,\% de valores más extremos (eje $y$: frecuencia, en escala logarítmica).\label{fig:dist}]{%
+\figura{distribucion_crecimiento.pdf}{Histograma. Eje $x$: crecimiento logarítmico semanal del TVL; eje $y$: frecuencia; línea vertical en $q_{0.9}$.}}
+\\
+\subfloat[Correlación de Spearman entre las 24 variables numéricas.\label{fig:corr}]{%
+\figura[1]{correlacion.pdf}{Mapa de calor. Ejes $x$ e $y$: variables de la Tabla~\ref{tab:vars}; color: coeficiente de Spearman.}}
+\caption{Variable objetivo y relación entre predictores.}
+\label{fig:eda2}
+\end{figure}
+
+\textbf{Limitaciones de los datos.} El TVL se calcula como la cantidad de tokens
+depositados multiplicada por su precio, de modo que parte de su crecimiento
+refleja variaciones de precio y no nuevos depósitos; la etiqueta relativa por
+semana atenúa el efecto general del mercado, pero no la distinta exposición de
+cada protocolo a activos como ETH. Además, el cálculo depende de adaptadores
+comunitarios sin estandarizar, algunos de los cuales consultan servidores
+externos, y un mismo depósito puede contarse en más de un protocolo
+\cite{saggese2025}. Por último, los protocolos que dejan de operar dejan de
+reportar datos, lo que puede introducir sesgo de supervivencia.
+
+\subsection{Paradigma de aprendizaje}
+\label{sec:paradigma}
+
+El problema se aborda con aprendizaje \textbf{supervisado}, como una tarea de
+\textbf{clasificación binaria} sobre el panel (protocolo, semana): a partir de
+las variables de la semana $t$ (Tabla~\ref{tab:vars}) se predice la etiqueta
+$y_{i,t}$ de \eqref{eq:y}. Se prefiere la clasificación a la regresión del
+crecimiento porque $g_{i,t+1}$ tiene colas muy pesadas (Fig.~\ref{fig:dist}), y
+predecir si un protocolo estará en el decil superior es más estable y responde
+directamente la pregunta de investigación. Gu \emph{et al.}
+\cite{gukellyxiu2020} usan una lógica similar al ordenar los activos en deciles
+según su predicción, y Jaquart \emph{et al.} \cite{jaquart2022} formulan una
+clasificación binaria análoga: si cada criptomoneda superará la mediana de
+rendimiento del día siguiente.
+
+Como la clase positiva representa cerca del 10\,\% de las observaciones, la
+métrica principal es el área bajo la curva precisión--\emph{recall} (PR-AUC),
+estimada como la precisión promedio
+\begin{equation}
+\text{AP} = \sum_{n} (R_n - R_{n-1})\, P_n,
+\label{eq:ap}
+\end{equation}
+donde $P_n$ y $R_n$ son la precisión y el \emph{recall} en el $n$-ésimo umbral.
+A diferencia del AUC-ROC, la PR-AUC no se ve dominada por la clase mayoritaria, y
+un clasificador aleatorio obtiene un valor igual a la prevalencia ($\approx 0.10$).
+El desbalance se tratará en el Entregable~II con ponderación de clases o técnicas
+de sub y sobremuestreo, aplicadas solo al conjunto de entrenamiento.
+
+La validación es temporal, sin mezclar semanas futuras en el entrenamiento:
+entrenamiento de 2022 a 2024, validación en 2025 y prueba en 2026\sidato{nentr}{
+(\dato{nentr}, \dato{nval} y \dato{nprueba} observaciones, respectivamente)}{}.
+Como la etiqueta de la semana $t$ usa el TVL de $t+1$, se descarta la última semana de
+cada bloque para evitar solapamiento entre conjuntos. El año de prueba coincide
+con una fase de contracción del TVL (Fig.~\ref{fig:tvl}), lo que permitirá
+evaluar la robustez de los modelos ante un cambio de régimen.
+
+\subsection{Hipótesis}
+\label{sec:hipotesis}
+
+\begin{itemize}
+\item \textbf{H1:} las variables de actividad (\emph{fees}, volumen DEX y sus
+razones con el TVL) aportan más poder predictivo que las variables basadas solo
+en el nivel del TVL.
+\item \textbf{H2:} los modelos no lineales (ensambles de árboles, redes
+neuronales) superan en PR-AUC a un modelo lineal de referencia (regresión
+logística).
+\end{itemize}
+H1 se evaluará comparando modelos entrenados con cada grupo de variables, y H2,
+comparando los modelos del Entregable~II contra la regresión logística.
+
+% =====================================================================
+%  II. ESTADO DEL ARTE  (la guía pide no superar una página)
+% =====================================================================
+\section{Estado del arte}
+\label{sec:estado}
+
+Se revisaron artículos de revista (2020--2026) de \emph{machine learning} que
+usaran la misma fuente de datos (DeFiLlama) o variables equivalentes (TVL, GMV,
+\emph{fees}), o que resolvieran el mismo tipo de problema: predecir el desempeño
+relativo de muchos activos. No encontramos trabajos de ML que usen DeFiLlama
+para predecir el crecimiento del TVL, que es el vacío que aborda este proyecto.
+
+\subsection{Trabajos revisados}
+
+En la Tabla~\ref{tab:sota}, Ali \cite{ali2026} es el trabajo más cercano en
+datos (DeFiLlama y las mismas familias de variables), aunque predice la
+valoración y no el crecimiento del TVL; Ghosh \emph{et al.} \cite{ghosh2023}
+muestran que los ensambles de árboles predicen bien los precios de tokens DeFi;
+y Gu \emph{et al.} \cite{gukellyxiu2020} y Jaquart \emph{et al.}
+\cite{jaquart2022} son los más cercanos en estructura: predicen el desempeño
+relativo en un panel de muchos activos, y los segundos lo formulan, como
+nosotros, como una clasificación binaria respecto a la cohorte de cada periodo.
+
+% --- Tabla del estado del arte (ancho de página) -----------------------
+\begin{table*}[!t]
+\caption{Trabajos de aprendizaje de máquina revisados\label{tab:sota}}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}L{0.075\textwidth}L{0.095\textwidth}L{0.29\textwidth}L{0.17\textwidth}L{0.085\textwidth}L{0.21\textwidth}@{}}
+\toprule
+\textbf{Trabajo} & \textbf{Paradigma} & \textbf{Técnica y datos} & \textbf{Validación} & \textbf{Métricas} & \textbf{Resultados} \\
+\midrule
+Ali (2026) \cite{ali2026} & Regresión supervisada (valoración) &
+\emph{Super Learner} apilado (\emph{Extra Trees}, CatBoost y SVR; KNN como meta-aprendiz) con Optuna. 30 protocolos DeFi, 5~370 observaciones diarias de 2022 (DeFiLlama, TokenTerminal y DappRadar). &
+Validación cruzada de 10 pliegues para elegir algoritmos; validación cruzada temporal de panel con ventana expandida. &
+RMSE, MAE, $R^2$; Wilcoxon. &
+RMSE $=0.085$, MAE $=0.065$, $R^2=0.97$; error 25--36\,\% menor que el de los modelos alternativos ($p<0.01$). SHAP: GMV $>$ TVL $>$ clase DEX. \\
+\addlinespace
+Ghosh \emph{et al.} (2023) \cite{ghosh2023} & Regresión supervisada (precio diario) &
+ISOMAP + \emph{Gradient Boosting} y UMAP + \emph{Random Forest} con indicadores técnicos, macroeconómicos y de medios. Precios diarios de 4 tokens DeFi y 4 NFT, 2020--2022. &
+Partición 85/15; \emph{GridSearchCV}; comparación con DT, SVR, ARIMA y SARIMA (Kruskal-Wallis). &
+NSE, TI, IA, DA. &
+En prueba, NSE de 0.85 a 0.98 y DA de 0.89 a 0.96 en los tokens DeFi; superan a los modelos de comparación. \\
+\addlinespace
+Gu \emph{et al.} (2020) \cite{gukellyxiu2020} & Regresión supervisada (retorno mensual) &
+OLS, ENet, PCR, PLS, GLM, RF, GBRT y redes neuronales de 1 a 5 capas; cerca de 30~000 acciones y 920 predictores, 1957--2016. &
+Entrenamiento 1957--1974, validación 1975--1986 y prueba 1987--2016; reentrenamiento anual. &
+$R^2_{oos}$; Diebold-Mariano; Sharpe. &
+Árboles y redes: $R^2_{oos}$ mensual de 0.33 a 0.40\,\% (OLS con 3 variables: 0.16\,\%); cartera larga-corta por deciles con Sharpe de 1.35. \\
+\addlinespace
+Jaquart \emph{et al.} (2022) \cite{jaquart2022} & Clasificación binaria supervisada (desempeño relativo) &
+LSTM, GRU, TCN, GBC, RF y regresión logística sobre los retornos de los 90 días previos; 100 criptomonedas de mayor capitalización (CoinGecko), 2018--2022. Etiqueta: retorno del día siguiente $\geq$ mediana. &
+5 periodos móviles de 800 días: entrenamiento (500), validación de hiperparámetros (150) y prueba (150). &
+Exactitud; prueba binomial; Sharpe. &
+Exactitud de 52.9\,\% (LR) a 54.2\,\% (RF); 57.5--59.5\,\% en el 10\,\% de predicciones más confiables. Sharpe tras costos: 3.23 (LSTM) frente a 1.33 del mercado. \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Definición de métricas}
+\label{sec:met}
+
+RMSE, MAE, $R^2$, exactitud, precisión, \emph{recall}, F1 y AUC-ROC son
+métricas estándar que no se redefinen aquí, y la \mbox{PR-AUC} se definió en
+\eqref{eq:ap}. Para las demás, $y_t$ es el
+valor real, $\hat{y}_t$ el predicho, $\bar{y}$ la media real y $N$ el número de
+observaciones. Gu \emph{et al.} \cite{gukellyxiu2020} usan un $R^2$ fuera de
+muestra que compara contra una predicción de cero, no contra la media histórica:
+\begin{equation}
+R^2_{oos} = 1 - \frac{\sum (r_{i,t+1} - \hat{r}_{i,t+1})^2}{\sum r_{i,t+1}^2}.
+\label{eq:r2oos}
+\end{equation}
+Ghosh \emph{et al.} \cite{ghosh2023} usan la eficiencia de Nash-Sutcliffe (NSE),
+el índice de Theil (TI) y el índice de concordancia (IA):
+\begin{align}
+\text{NSE} &= 1 - \frac{\sum (\hat{y}_t - y_t)^2}{\sum (y_t - \bar{y})^2}, \label{eq:nse}\\
+\text{TI} &= \frac{\sqrt{\tfrac{1}{N}\sum (\hat{y}_t - y_t)^2}}{\sqrt{\tfrac{1}{N}\sum \hat{y}_t^2} + \sqrt{\tfrac{1}{N}\sum y_t^2}}, \label{eq:ti}\\
+\text{IA} &= 1 - \frac{\sum (\hat{y}_t - y_t)^2}{\sum \left(|\hat{y}_t - \bar{y}| + |y_t - \bar{y}|\right)^2}, \label{eq:ia}
+\end{align}
+y la exactitud direccional $\text{DA} = \frac{1}{N}\sum_t D_t$, con $D_t = 1$ si
+$(y_{t+1} - y_t)(\hat{y}_{t+1} - y_t) \geq 0$ y $D_t = 0$ en otro caso. NSE e IA
+cercanos a 1 y TI cercano a 0 indican mejores predicciones. La razón de Sharpe
+\cite{gukellyxiu2020,jaquart2022} es $\text{SR} = \bar{r}_p/\sigma_p$: la media
+del retorno (en exceso) de una cartera dividida por su desviación estándar. Las
+pruebas de Wilcoxon, Kruskal-Wallis y Diebold-Mariano contrastan si las
+diferencias de error entre modelos son significativas, y la binomial, si la
+exactitud supera el 50\,\% del azar.
+
+\subsection{Síntesis y contribución al problema}
+
+La literatura apunta en tres direcciones: la señal útil está en la dinámica y la
+actividad (\emph{momentum}, volatilidad, \emph{fees}, volumen) más que en el
+nivel del TVL; los métodos no lineales superan a los lineales, aunque la señal es
+débil ---en \cite{jaquart2022}, la exactitud pasa de 52.9\,\% con regresión
+logística a 54.2\,\% con RF, frente al 50\,\% del azar---, por lo que la \mbox{PR-AUC}
+se comparará con la de un clasificador aleatorio y la de la regresión logística;
+y la validación debe respetar el orden temporal. Tres de los cuatro trabajos
+formulan una regresión; nuestro proyecto sigue la lógica de \cite{jaquart2022}
+con una clasificación relativa: ¿estará el protocolo en el decil superior de
+crecimiento la próxima semana?
+
+% =====================================================================
+%  Bibliografía (BibTeX, estilo IEEE)
+% =====================================================================
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
