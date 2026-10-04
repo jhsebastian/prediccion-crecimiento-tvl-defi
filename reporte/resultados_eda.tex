@@ -1,0 +1,40 @@
+% Cifras del análisis exploratorio (datos de DeFiLlama descargados el 2026-10-01, hora UTC).
+% Las genera EDA_Entregable1.ipynb; main.tex las usa con \dato{clave}.
+\setdato{fechadescarga}{01/10/2026}
+\setdato{ultimasemana}{27/09/2026}
+\setdato{N}{253\,502}
+\setdato{P}{3\,348}
+\setdato{T}{246}
+\setdato{p}{10.0}
+\setdato{minE}{513}
+\setdato{maxE}{1\,498}
+\setdato{medE}{1\,126}
+\setdato{m}{20}
+\setdato{tvl2022}{39\,000}
+\setdato{tvl2025}{166\,000}
+\setdato{caida2026}{59}
+\setdato{t-g-media}{$-0.0270$}
+\setdato{t-g-mediana}{$-0.00487$}
+\setdato{t-g-desv}{$0.309$}
+\setdato{t-g-falt}{0.2}
+\setdato{t-gtvl1-media}{$0.00457$}
+\setdato{t-gtvl1-mediana}{$-0.00312$}
+\setdato{t-gtvl1-desv}{$0.429$}
+\setdato{t-gtvl1-falt}{0.1}
+\setdato{t-logfees-media}{$9.50$}
+\setdato{t-logfees-mediana}{$9.93$}
+\setdato{t-logfees-desv}{$3.36$}
+\setdato{t-logfees-falt}{68.7}
+\setdato{t-logdex-media}{$15.1$}
+\setdato{t-logdex-mediana}{$15.1$}
+\setdato{t-logdex-desv}{$3.51$}
+\setdato{t-logdex-falt}{81.3}
+\setdato{t-ratiofees-media}{$0.00422$}
+\setdato{t-ratiofees-mediana}{$0.000692$}
+\setdato{t-ratiofees-desv}{$0.0536$}
+\setdato{t-ratiofees-falt}{68.7}
+\setdato{t-vol12-media}{$0.188$}
+\setdato{t-vol12-mediana}{$0.104$}
+\setdato{t-vol12-desv}{$0.509$}
+\setdato{t-vol12-falt}{4.6}
+\setdato{hallazgos}{La variable objetivo continua $g_{i,t+1}$ tiene mediana $-0.00487$ y colas pesadas (curtosis en exceso de $547$); el umbral semanal $q_{0.9}$ promedia $0.0838$ y varía entre $-0.0569$ y $0.332$, mientras que la clase positiva se mantiene entre 9.9\,\% y 10.4\,\% por semana. Las variables de actividad concentran los faltantes: los \emph{fees} faltan en 68.7\,\% de las observaciones y el volumen DEX en 81.3\,\%, lo que justifica las indicadoras de disponibilidad. La correlación de Spearman (Fig.~\ref{fig:corr}) muestra variables redundantes: cada \texttt{mom\_}$k$\texttt{w} es igual a \texttt{g\_tvl\_}$k$\texttt{w}$/k$, y \texttt{accel} y \texttt{accel\_12w} son combinaciones lineales de otras variables, por lo que la matriz de predictores tiene rango 18 de 24; estas variables son candidatas a eliminarse en el Entregable~II. Entre variables distintas, el par más correlacionado es \texttt{ratio\_fees\_tvl} y \texttt{fees\_tvl\_rank\_w} ($\rho = 0.98$).}

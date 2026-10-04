@@ -1,0 +1,16 @@
+# Datos que descarga el notebook (se regeneran al ejecutarlo)
+datos/
+entrega_overleaf.zip
+
+# Archivos temporales
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
+
+# Archivos auxiliares de LaTeX
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
